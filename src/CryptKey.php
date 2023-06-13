@@ -11,7 +11,7 @@ class CryptKey extends BaseCryptKey
 
     public function getKid()
     {
-        return $this->kid;
+        return $this->kid ?? "1";
     }
 
     public function setX509($x509)

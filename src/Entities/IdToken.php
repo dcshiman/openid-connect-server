@@ -3,6 +3,9 @@
 namespace Idaas\OpenID\Entities;
 
 use DateTimeImmutable;
+use Idaas\OpenID\Encording\SecondBasedDateConversion;
+use Lcobucci\JWT\Encoding\ChainedFormatter;
+use Lcobucci\JWT\Encoding\UnifyAudience;
 use Lcobucci\JWT\Signer\Rsa\Sha256;
 use League\OAuth2\Server\CryptKey;
 use Lcobucci\JWT\Configuration;
@@ -38,17 +41,23 @@ class IdToken
             InMemory::plainText($privateKey->getKeyContents())
         );
 
-        $token = $config->builder()
-            ->withHeader('kid', method_exists($privateKey, 'getKid') ? $privateKey->getKid() : null)
+        $token = $config->builder(new ChainedFormatter(
+            new UnifyAudience(),
+            new SecondBasedDateConversion()
+        ))->withHeader('kid', method_exists($privateKey, 'getKid') ? $privateKey->getKid() : null)
             ->issuedBy($this->getIssuer() ?? "none")
             ->withHeader('sub', $this->getSubject())
             ->relatedTo($this->getSubject())
             ->permittedFor($this->getAudience())
             ->expiresAt($this->getExpiration())
             ->issuedAt($this->getIat())
-            ->identifiedBy("123")
-            ->withClaim('auth_time', $this->getAuthTime()->getTimestamp())
-            ->withClaim('nonce', $this->getNonce());
+            ->identifiedBy($this->jti())
+            ->withClaim('token_use', 'id')
+            ->withClaim('auth_time', $this->getAuthTime()->getTimestamp());
+
+        if ($this->getNonce()) {
+            $token->withClaim('nonce', $this->getNonce());
+        }
 
         foreach ($this->extra as $key => $value) {
             $token->withClaim($key, $value);
@@ -261,5 +270,10 @@ class IdToken
     public function addExtra($key, $value)
     {
         $this->extra[$key] = $value;
+    }
+
+    public function jti()
+    {
+        return sha1($this->issuer . $this->authTime->getTimestamp() . $this->subject);
     }
 }
