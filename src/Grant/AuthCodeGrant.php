@@ -161,6 +161,14 @@ class AuthCodeGrant extends \League\OAuth2\Server\Grant\AuthCodeGrant
         ResponseTypeInterface $responseType,
         \DateInterval $accessTokenTTL
     ) {
+        $encryptedAuthCode = $this->getRequestParameter('code', $request, null);
+
+        $authCodePayload = json_decode($this->decrypt($encryptedAuthCode));
+
+        if (method_exists($this->accessTokenRepository, 'setAuthCodeId')) {
+            $this->accessTokenRepository->setAuthCodeId($authCodePayload->auth_code_id);
+        }
+
         /**
          * @var BearerTokenResponse $result
          */
@@ -200,6 +208,10 @@ class AuthCodeGrant extends \League\OAuth2\Server\Grant\AuthCodeGrant
         $idToken->setAzp($sessionInformation->getAzp());
 
         $result->setIdToken($idToken);
+
+        if (method_exists($this->accessTokenRepository, 'setAuthCodeId')) {
+            $this->accessTokenRepository->setAuthCodeId(null);
+        }
 
         return $result;
     }
